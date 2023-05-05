@@ -182,7 +182,7 @@
         name: "{{ lab_project_name }}"
         scm_type: git
         scm_url: "https://github.com/network-automation/panos-instruqt.git"
-        scm_branch: master
+        scm_branch: main
         organization: "Default"
         scm_update_on_launch: false
         scm_update_cache_timeout: 60
