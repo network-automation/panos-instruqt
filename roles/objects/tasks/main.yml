@@ -1,0 +1,20 @@
+---
+- name: Create Address objects
+  paloaltonetworks.panos.panos_address_object:
+    provider: '{{ provider }}'
+    name: '{{ address_item.name }}'
+    value: '{{ address_item.value }}'
+  loop: '{{ panos_address_object }}'
+  loop_control:
+    loop_var: address_item
+  tags: objects
+
+- name: Create Service objects
+  paloaltonetworks.panos.panos_service_object:
+    provider: '{{ provider }}'
+    name: '{{ service_item.name }}'
+    destination_port: '{{ service_item.destination_port }}'
+  loop: '{{ panos_service_object }}'
+  loop_control:
+    loop_var: service_item
+  tags: objects

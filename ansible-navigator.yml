@@ -1,0 +1,13 @@
+---
+ansible-navigator:
+  ansible:
+    inventory:
+      entries:
+      - hosts
+  execution-environment:
+    container-engine: podman
+    enabled: true
+    image: registry.gitlab.com/redhatautomation/panos-ee:latest
+  logging:
+      level: critical
+    

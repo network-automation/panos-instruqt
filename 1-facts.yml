@@ -1,0 +1,21 @@
+---
+- name: Retrieve data about objects from the firewall
+  hosts: gcp-fw
+  connection: local
+  gather_facts: False
+
+
+  tasks:
+    - name: check if ready
+      paloaltonetworks.panos.panos_check:
+        provider: "{{ provider }}"
+        timeout: 0
+
+    - name: Get the system info
+      paloaltonetworks.panos.panos_op:
+        provider: "{{ provider }}"
+        cmd: "show system info"
+      register: res
+
+    - debug:
+        msg: "{{ res.stdout }}"

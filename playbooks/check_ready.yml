@@ -1,0 +1,36 @@
+---
+# check_ready.yml - Checks to see if a firewall is ready via 'show chassis-ready' command.
+#
+# Description
+# ===========
+#
+# Uses the 'show chassis-ready' op command to see if a PAN-OS firewall is ready.  This playbook uses the Ansible
+# 'until' and 'retries' keywords to retry the command until successful.
+#
+# This playbook requires connection details for the device to be specified in the variables 'ip_address', 'username',
+# and 'password'.  These may be defined as host variables (see `host_vars/firewall.yml` for an example) or
+# extra vars.
+#
+# Modules Used
+# ============
+#
+# panos_op - https://paloaltonetworks.github.io/pan-os-ansible/modules/panos_op.html
+#
+# Usage
+# =====
+#
+#   $ ansible-playbook -i inventory check_ready.yml
+
+- hosts: gcp-fw
+  connection: local
+
+  tasks:
+    - name: Check to see if device is ready
+      paloaltonetworks.panos.panos_op:
+        provider: '{{ provider }}'
+        cmd: 'show chassis-ready'
+      changed_when: false
+      register: result
+      until: result is not failed and (result.stdout | from_json).response.result == 'yes'
+      retries: 50
+      delay: 30

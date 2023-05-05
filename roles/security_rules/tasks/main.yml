@@ -1,0 +1,18 @@
+---
+- name: Add Security rules
+  paloaltonetworks.panos.panos_security_rule:
+    provider: '{{ provider }}'
+    rule_name: '{{ security_item.rule_name }}'
+    source_zone: '{{ security_item.source_zone }}'
+    source_ip: '{{ security_item.source_ip }}'
+    destination_zone: '{{ security_item.destination_zone }}'
+    destination_ip: '{{ security_item.destination_ip }}'
+    application: '{{ security_item.application }}'
+    service: '{{ security_item.service }}'
+    action: '{{ security_item.action }}'
+    log_start: "yes"
+    log_end: "yes"
+  loop: '{{ panos_security_rule }}'
+  loop_control:
+    loop_var: security_item
+  tags: securitynatrules

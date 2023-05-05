@@ -1,0 +1,24 @@
+---
+  - name: Install and configure Apache httpd
+    hosts: all
+    become: yes
+  
+    tasks:
+      - name: Install httpd package
+        yum:
+          name: httpd
+          state: present
+  
+      - name: Start and enable httpd service
+        service:
+          name: httpd
+          state: started
+          enabled: yes
+  
+      - name: Copy index.html file
+        copy:
+          src: html/index.html
+          dest: /var/www/html/index.html
+          owner: apache
+          group: apache
+          mode: '0644'

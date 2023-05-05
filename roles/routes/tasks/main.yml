@@ -1,0 +1,12 @@
+---
+- name: Create Routes
+  paloaltonetworks.panos.panos_static_route:
+    provider: '{{ provider }}'
+    name: '{{ route_item.name }}'
+    destination: '{{ route_item.destination }}'
+    nexthop: '{{ route_item.nexthop }}'
+    interface: '{{ route_item.interface }}'
+  loop: '{{ panos_static_route }}'
+  loop_control:
+    loop_var: route_item
+  tags: routes

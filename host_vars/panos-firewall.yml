@@ -1,0 +1,160 @@
+provider:
+  username: "admin"
+
+#Device
+hostname: "panos-firewall"
+dns_server_primary: "208.67.222.222"
+dns_server_secondary: "208.67.220.220"
+
+panos_management_profile:
+- name: Allow-HTTPS
+  https: yes
+  permitted_ip: '10.5.2.5'
+
+interfaces:
+- if_name: ethernet1/1
+  zone_name: Untrust
+  create_default_route: yes
+  mode: 'layer3'
+  commit: no
+- if_name: ethernet1/2
+  zone_name: Web
+  create_default_route: no
+  management_profile: Allow-HTTPS
+  mode: 'layer3'
+  commit: no
+
+#Objects
+panos_address_object:
+- name: web-object
+  value: 10.5.2.5
+
+panos_service_object:
+- name: service-tcp-22
+  destination_port: 22
+- name: service-tcp-221
+  destination_port: 221
+- name: service-tcp-222
+  destination_port: 222
+
+#Security Policies
+panos_security_rule:
+- rule_name: 'SSH 221-222 inbound'
+  source_zone: 
+  - Untrust
+  source_ip: 
+  - any
+  destination_zone: 
+  - Web
+  destination_ip: 
+  - any
+  application: 
+  - ping
+  - ssh
+  service: 
+  - service-tcp-221
+  - service-tcp-222
+  action: allow
+- rule_name: 'Allow all ping'
+  source_zone: 
+  - any
+  source_ip: 
+  - any
+  destination_zone: 
+  - any
+  destination_ip: 
+  - any
+  application: 
+  - ping
+  service: 
+  - application-default
+  action: allow
+- rule_name: 'Web browsing'
+  source_zone: 
+  - Untrust
+  source_ip: 
+  - any
+  destination_zone: 
+  - Web
+  destination_ip: 
+  - any
+  application: 
+  - any
+  service: 
+  - service-http
+  action: allow 
+- rule_name: 'Allow all outbound'
+  source_zone: 
+  - Web
+  source_ip: 
+  - any
+  destination_zone: 
+  - Untrust
+  destination_ip: 
+  - any
+  application: 
+  - any
+  service: 
+  - application-default
+  action: allow 
+
+#Routes
+panos_static_route:
+- name: outbound
+  destination: '0.0.0.0/0'
+  nexthop: '10.5.1.1'
+  interface: 'ethernet1/1'
+- name: to-web
+  destination: '10.5.2.0/24'
+  nexthop: '10.5.2.1'
+  interface: 'ethernet1/2'
+
+  
+#NAT
+panos_nat_rule2:
+- name: 'Web SSH'
+  nat_type: 'ipv4'
+  from_zones:
+  - Untrust 
+  to_zones:
+  - Untrust
+  service: 'service-tcp-221'
+  source_addresses:
+  - any 
+  destination_addresses:
+  - 10.5.1.4 
+  destination_translated_address: web-object
+  destination_translated_port: 22
+  source_translation_type: 'dynamic-ip-and-port'
+  source_translation_address_type: 'interface-address'
+  source_translation_interface: 'ethernet1/2'
+- name: 'WordPress NAT'
+  nat_type: 'ipv4'
+  from_zones:
+  - Untrust 
+  to_zones:
+  - Untrust
+  service: 'service-http'
+  source_addresses:
+  - any 
+  destination_addresses:
+  - 10.5.1.4 
+  destination_translated_address: web-object
+  destination_translated_port: 80
+  source_translation_type: 'dynamic-ip-and-port'
+  source_translation_address_type: 'interface-address'
+  source_translation_interface: 'ethernet1/2'
+- name: 'Outbound nat'
+  nat_type: 'ipv4'
+  from_zones:
+  - any 
+  to_zones:
+  - Untrust
+  service: 'any'
+  source_addresses:
+  - any 
+  destination_addresses:
+  - any
+  source_translation_type: 'dynamic-ip-and-port'
+  source_translation_address_type: 'interface-address'
+  source_translation_interface: 'ethernet1/1'

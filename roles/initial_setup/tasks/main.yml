@@ -1,0 +1,50 @@
+---
+- name: Set DNS and Hostname
+  paloaltonetworks.panos.panos_mgtconfig:
+    provider: "{{ provider }}"
+    dns_server_primary: "{{ dns_server_primary }}"
+    dns_server_secondary: "{{ dns_server_secondary }}"
+    hostname: "{{ hostname }}"
+  tags: interfaces
+
+- name: Create Zones
+  paloaltonetworks.panos.panos_zone:
+    provider: "{{ provider }}"
+    zone: "{{ zone_item.zone_name }}"
+    mode: "{{ zone_item.mode }}"
+  loop: "{{ interfaces }}"
+  loop_control:
+    loop_var: zone_item
+    label:
+      - "{{ zone_item.zone_name }}"
+      - "{{ zone_item.mode }}"
+  tags: interfaces
+
+- name: Ensure mngt profile exists
+  paloaltonetworks.panos.panos_management_profile:
+    provider: "{{ provider }}"
+    name: "{{ mgmt_item.name }}"
+    https: "{{ mgmt_item.https }}"
+    permitted_ip: "{{ mgmt_item.permitted_ip }}"
+  loop: "{{ panos_management_profile }}"
+  loop_control:
+    loop_var: mgmt_item
+  tags: interfaces
+
+- name: Enable DHCP interfaces
+  paloaltonetworks.panos.panos_interface:
+    provider: "{{ provider }}"
+    if_name: "{{ interface_item.if_name }}"
+    zone_name: "{{ interface_item.zone_name }}"
+    create_default_route: "{{ interface_item.create_default_route }}"
+    management_profile: "{{ interface_item.management_profile | default(omit) }}"
+    vsys: vsys1
+    commit: "{{ interface_item.commit }}"
+  loop: "{{ interfaces }}"
+  loop_control:
+    loop_var: interface_item
+    label:
+      - "{{  interface_item.if_name }}"
+      - "{{  interface_item.zone_name }}"
+      - "{{  interface_item.create_default_route }}"
+  tags: interfaces

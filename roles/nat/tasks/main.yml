@@ -1,0 +1,20 @@
+---
+- name: Add Nat rules
+  paloaltonetworks.panos.panos_nat_rule2:
+    provider: '{{ provider }}'
+    name: '{{ nat_item.name }}'
+    nat_type: '{{ nat_item.nat_type }}'
+    from_zones: '{{ nat_item.from_zones }}'
+    to_zones: '{{ nat_item.to_zones }}'
+    service: '{{ nat_item.service }}'
+    source_addresses: '{{ nat_item.source_addresses }}'
+    destination_addresses: '{{ nat_item.destination_addresses }}'
+    destination_translated_address: '{{ nat_item.destination_translated_address | default(omit) }}'
+    destination_translated_port: '{{ nat_item.destination_translated_port | default(omit) }}'
+    source_translation_type: '{{ nat_item.source_translation_type }}'
+    source_translation_address_type: '{{ nat_item.source_translation_address_type }}'
+    source_translation_interface: '{{ nat_item.source_translation_interface }}'
+  loop: '{{ panos_nat_rule2 }}'
+  loop_control:
+    loop_var: nat_item
+  tags: securitynatrules

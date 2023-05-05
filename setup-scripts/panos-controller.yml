@@ -1,0 +1,350 @@
+---
+##
+# https://play.instruqt.com/redhat/tracks/getting-started-controller/
+##
+- name: Instruqt config getting started with controller
+  hosts: localhost
+  gather_facts: false
+  become: true
+
+  vars:
+    username: admin
+    admin_password: ansible123!
+    lab_credential_name: "Lab Machine Credential"
+    lab_project_name: "Firewall Project"
+    lab_jt_name: "Setup initial password"
+    lab_inventory_name: "Panos-firewall Managenent"
+    lab_organization: "Default"
+    custom_facts_dir: "/etc/ansible/facts.d"
+    custom_facts_file: custom_facts.fact
+
+  tags:
+    - getting-started-controller
+
+  tasks:
+    - name: Ensure tower/controller is online and working
+      ansible.builtin.uri:
+        url: https://localhost/api/v2/ping/
+        method: GET
+        user: "{{ username }}"
+        password: "{{ admin_password }}"
+        validate_certs: false
+        force_basic_auth: true
+      register: controller_online
+      until: controller_online is success
+      delay: 3
+      retries: 5
+      tags:
+        - setup-env
+   # Create awx login token and custom fact
+    - name: Get awx token and restart automation-controller if it fails
+      block:
+        - name: Gather facts
+          ansible.builtin.setup:
+          tags:
+            - awx-token
+
+        - name: Login awx token
+          ansible.builtin.shell: >
+            awx --conf.username admin --conf.password "ansible123!" -k login | jq -r '.token'
+          register: awx_token
+          until: awx_token is success
+          retries: 6
+          delay: 3
+          failed_when: awx_token.rc > 0
+
+      rescue:
+        - name: In rescue block for awx token
+          ansible.builtin.debug:
+            msg: "failed to get awx token. Restarting automation controller service"
+
+        - name: Restart the controller service
+          ansible.builtin.service:
+            name: automation-controller
+            state: restarted
+
+        - name: Ensure tower/controller is online and working
+          ansible.builtin.uri:
+            url: https://localhost/api/v2/ping/
+            method: GET
+            user: "{{ username }}"
+            password: "{{ admin_password }}"
+            validate_certs: false
+            force_basic_auth: true
+          register: controller_online
+          until: controller_online is success
+          delay: 3
+          retries: 5
+
+        - name: Retry getting awx token
+          ansible.builtin.shell: >
+            awx --conf.username admin --conf.password "ansible123!" -k login | jq -r '.token'
+          register: awx_token
+          until: awx_token is not failed
+          retries: 6
+          delay: 3
+
+      always:
+        - name: Create fact.d dir
+          file:
+            path: "{{ custom_facts_dir }}"
+            state: directory
+            recurse: yes
+
+        - name: Create awx-token custom fact
+          copy:
+            content: |
+              [localfacts]
+              _awx_token = "{{ awx_token.stdout }}"
+            dest: "{{ custom_facts_dir }}/{{ custom_facts_file }}"
+
+        - name: Refresh facts
+          setup:
+      when: ansible_local.custom_facts.localfacts._awx_token is undefined or  ansible_local.custom_facts.localfacts._awx_token | count == 0
+      tags:
+        - setup-env
+        -  initial-setup
+
+    - name: debug custom fact
+      ansible.builtin.debug:
+        var: ansible_local.custom_facts.localfacts._awx_token
+      tags:
+        - awx-token
+
+    - name: Create custom credential
+      awx.awx.credential_type:
+        name: panos_ssh
+        description: Credentials type for panos
+        inputs:
+          fields:
+            - id: my_private_key
+              type: string
+              label: private_key
+              secret: true
+              multiline: true
+        injectors: '{% raw %}{"file": {"template.my_key": "{{ my_private_key  }}"},"extra_vars": {"secret_key": "{{ tower.filename.my_key }}"}}{% endraw %}'
+        state: present
+        kind: cloud
+        controller_config_file: "{{ playbook_dir }}/../controller.cfg"
+        validate_certs: false
+      tags:
+        - initial-setup
+
+    - name: Add the firewall ssh credential
+      awx.awx.credential:
+        name: "firewall_cred"
+        organization: "Default"
+        credential_type: panos_ssh
+        inputs:
+          my_private_key: "{{ lookup('file', './id_rsa') }}"
+        controller_config_file: "{{ playbook_dir }}/../controller.cfg"
+        validate_certs: false
+      tags:
+        - initial-setup
+
+    - name: Add machine credential for rhel-vm
+      awx.awx.credential:
+        name: RHEL VM credentials
+        credential_type: Machine
+        organization: "Default"
+        state: present
+        controller_config_file: "{{ playbook_dir }}/../controller.cfg"
+        validate_certs: false
+        inputs:
+          username: admin
+          ssh_key_data: "{{ lookup('file', './id_rsa') }}"
+      tags:
+        - initial-setup
+
+    - name: Add localhost machine credential
+      awx.awx.credential:
+        name: localhost
+        credential_type: Machine
+        organization: "Default"
+        state: present
+        controller_config_file: "{{ playbook_dir }}/../controller.cfg"
+        validate_certs: false
+      tags:
+        - initial-setup
+
+    # added to controller image build
+
+    - name: Add the panos EE
+      awx.awx.execution_environment:
+        name: "Panos EE"
+        image: "registry.gitlab.com/redhatautomation/panos-ee:latest"
+        controller_config_file: "{{ playbook_dir }}/../controller.cfg"
+      tags:
+        - initial-setup
+
+    - name: Add the lab project
+      awx.awx.project:
+        name: "{{ lab_project_name }}"
+        scm_type: git
+        scm_url: "https://github.com/anshulbehl/panos-instruqt.git"
+        scm_branch: master
+        organization: "Default"
+        scm_update_on_launch: false
+        scm_update_cache_timeout: 60
+        default_environment: "Panos EE"
+        controller_config_file: "{{ playbook_dir }}/../controller.cfg"
+        validate_certs: false
+      tags:
+        - initial-setup
+
+    - name: Add the {{ lab_inventory_name }} Inventory
+      awx.awx.inventory:
+        name: "{{ lab_inventory_name }}"
+        description: "Lab Inventory"
+        organization: "{{ lab_organization }}"
+        state: present
+        controller_config_file: "{{ playbook_dir }}/../controller.cfg"
+      tags:
+        - initial-setup
+
+    - name: Create hosts
+      awx.awx.host:
+        name: "panos-firewall"
+        inventory: "{{ lab_inventory_name }}"
+        state: present
+        validate_certs: false
+        controller_config_file: "{{ playbook_dir }}/../controller.cfg"
+        variables: "{{ lookup('file', './panos-firewall.yml') | from_yaml }}"
+      tags:
+        - initial-setup
+
+    - name: Add the rhel Inventory
+      awx.awx.inventory:
+        name: "Panos-firewall Untrust"
+        description: "panos untrust interface"
+        organization: "{{ lab_organization }}"
+        state: present
+        controller_config_file: "{{ playbook_dir }}/../controller.cfg"
+        validate_certs: false
+      tags:
+        - initial-setup
+
+    - name: Add rhel host to untrust
+      awx.awx.host:
+        name: rhel-vm
+        inventory: "Panos-firewall Untrust"
+        state: present
+        validate_certs: false
+        controller_config_file: "{{ playbook_dir }}/../controller.cfg"
+        variables:
+          ansible_host: "{{ (lookup('file', './panos-firewall.yml') | from_yaml).untrust_interface_ip }}"
+          ansible_user: "admin"
+          ansible_port: 221
+      tags:
+        - initial-setup
+
+
+    - name: Create the lab job template
+      awx.awx.job_template:
+        name: "{{ lab_jt_name }}"
+        state: present
+        become_enabled: true
+        project: "{{ lab_project_name }}"
+        credential: "firewall_cred"
+        inventory: "{{ lab_inventory_name }}"
+        playbook: "playbooks/set_initial_password.yml"
+        controller_config_file: "{{ playbook_dir }}/../controller.cfg"
+        extra_vars:
+          private_key: '{% raw %}{{ secret_key }}{% endraw %}'
+        validate_certs: false
+      tags:
+        - initial-setup
+
+    - name: run {{ lab_jt_name }} template
+      awx.awx.job_launch:
+        job_template: "{{ lab_jt_name }}"
+        controller_config_file: "{{ playbook_dir }}/../controller.cfg"
+        validate_certs: false
+      tags:
+        - initial-setup
+
+    - name: Create the interfaces job template
+      awx.awx.job_template:
+        name: "Setup Interfaces"
+        state: present
+        become_enabled: true
+        project: "{{ lab_project_name }}"
+        inventory: "{{ lab_inventory_name }}"
+        playbook: "playbooks/pan_config.yml"
+        controller_config_file: "{{ playbook_dir }}/../controller.cfg"
+        validate_certs: false
+        job_tags: interfaces
+      tags:
+        - interfaces
+
+    - name: Create the objects job template
+      awx.awx.job_template:
+        name: "Setup Objects"
+        state: present
+        become_enabled: true
+        project: "{{ lab_project_name }}"
+        inventory: "{{ lab_inventory_name }}"
+        playbook: "playbooks/pan_config.yml"
+        controller_config_file: "{{ playbook_dir }}/../controller.cfg"
+        validate_certs: false
+        job_tags: objects
+      tags:
+        - objects
+
+    - name: Create the security and nat rules job template
+      awx.awx.job_template:
+        name: "Setup security and nat rules"
+        state: present
+        become_enabled: true
+        project: "{{ lab_project_name }}"
+        inventory: "{{ lab_inventory_name }}"
+        playbook: "playbooks/pan_config.yml"
+        controller_config_file: "{{ playbook_dir }}/../controller.cfg"
+        validate_certs: false
+        job_tags: securitynatrules
+      tags:
+        - securitynatrules
+
+    - name: Create the routes job template
+      awx.awx.job_template:
+        name: "Setup routes"
+        state: present
+        become_enabled: true
+        project: "{{ lab_project_name }}"
+        inventory: "{{ lab_inventory_name }}"
+        playbook: "playbooks/pan_config.yml"
+        controller_config_file: "{{ playbook_dir }}/../controller.cfg"
+        validate_certs: false
+        job_tags: "routes"
+      tags:
+        - routes
+
+    - name: Create the commit job template
+      awx.awx.job_template:
+        name: "Commit candidate config"
+        state: present
+        become_enabled: true
+        project: "{{ lab_project_name }}"
+        inventory: "{{ lab_inventory_name }}"
+        playbook: "playbooks/pan_config.yml"
+        controller_config_file: "{{ playbook_dir }}/../controller.cfg"
+        validate_certs: false
+        job_tags: "commit"
+      tags:
+        - commit
+
+    - name: Create the httpd accessibility JT
+      awx.awx.job_template:
+        name: "Setup landing page for RHEL VM"
+        state: present
+        become_enabled: true
+        project: "{{ lab_project_name }}"
+        inventory: "Panos-firewall Untrust"
+        playbook: "playbooks/httpd.yml"
+        execution_environment: "Default execution environment"
+        credentials: "RHEL VM credentials"
+        controller_config_file: "{{ playbook_dir }}/../controller.cfg"
+        validate_certs: false
+      tags:
+        - httpd
+ 
