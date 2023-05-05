@@ -181,7 +181,7 @@
       awx.awx.project:
         name: "{{ lab_project_name }}"
         scm_type: git
-        scm_url: "https://github.com/anshulbehl/panos-instruqt.git"
+        scm_url: "https://github.com/network-automation/panos-instruqt.git"
         scm_branch: master
         organization: "Default"
         scm_update_on_launch: false
