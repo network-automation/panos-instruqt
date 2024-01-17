@@ -15,7 +15,7 @@
   loop: "{{ interfaces }}"
   loop_control:
     loop_var: zone_item
-    label:
+    labels:
       - "{{ zone_item.zone_name }}"
       - "{{ zone_item.mode }}"
   tags: interfaces
