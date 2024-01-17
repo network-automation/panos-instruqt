@@ -43,7 +43,7 @@
   loop: "{{ interfaces }}"
   loop_control:
     loop_var: interface_item
-    label:
+    labels:
       - "{{  interface_item.if_name }}"
       - "{{  interface_item.zone_name }}"
       - "{{  interface_item.create_default_route }}"
