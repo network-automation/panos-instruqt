@@ -15,9 +15,9 @@
   loop: "{{ interfaces }}"
   loop_control:
     loop_var: zone_item
-    labels:
-      - "{{ zone_item.zone_name }}"
-      - "{{ zone_item.mode }}"
+  #  labels:
+  #    - "{{ zone_item.zone_name }}"
+  #    - "{{ zone_item.mode }}"
   tags: interfaces
 
 - name: Ensure mngt profile exists
@@ -43,8 +43,8 @@
   loop: "{{ interfaces }}"
   loop_control:
     loop_var: interface_item
-    labels:
-      - "{{  interface_item.if_name }}"
-      - "{{  interface_item.zone_name }}"
-      - "{{  interface_item.create_default_route }}"
+  #  labels:
+  #    - "{{  interface_item.if_name }}"
+  #    - "{{  interface_item.zone_name }}"
+  #    - "{{  interface_item.create_default_route }}"
   tags: interfaces
