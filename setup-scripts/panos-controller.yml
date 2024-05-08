@@ -111,6 +111,28 @@
       tags:
         - awx-token
 
+    - name: Retry getting awx token
+      ansible.builtin.shell: >
+        awx --conf.username admin --conf.password "ansible123!" -k login | jq -r '.token'
+      register: awx_token
+      until: awx_token is not failed
+      retries: 6
+      delay: 3
+      tags:
+        - initial-setup
+
+    - name: Create controller cfg
+      ansible.builtin.copy:
+       dest: "{{ playbook_dir }}/../controller.cfg"
+       content: |
+         [general]
+         host = https://localhost/
+         verify_ssl =false
+         oauth_token = {{ awx_token.stdout }}
+      tags:
+        - initial-setup
+        - setup-env
+
     - name: Create custom credential
       awx.awx.credential_type:
         name: panos_ssh
